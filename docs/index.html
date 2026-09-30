@@ -1,5 +1,9 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>core dump</title>
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>core dump</title>
 <style>
 [hidden]{display:none!important}
 body{margin:0;font-family:"Segoe UI",system-ui,sans-serif}
@@ -8,13 +12,17 @@ body{margin:0;font-family:"Segoe UI",system-ui,sans-serif}
 .bsod p{font-size:clamp(1rem,2.4vw,1.5rem);max-width:40em}
 .bsod small{opacity:.8;font-size:.9rem}
 button{font:inherit;cursor:pointer;padding:.6em 1.2em;border:2px solid currentColor;background:transparent;color:inherit;margin:.3em .3em .3em 0}
-button:hover:not(:disabled){background:#fff3}button:disabled{opacity:.35;cursor:not-allowed}
+button:hover:not(:disabled){background:#fff3}
+button:disabled{opacity:.35;cursor:not-allowed}
 #dash{background:#0c0c0c;color:#33ff66;font-family:Consolas,monospace;min-height:100vh;box-sizing:border-box;padding:6vw 8vw}
 #dash input{font:inherit;background:#000;color:#33ff66;border:1px solid #33ff66;padding:.5em;width:10em}
-#dash h2{margin-top:0}#msg{color:#ffd166;min-height:1.4em}
+#dash h2{margin-top:0}
+#msg{color:#ffd166;min-height:1.4em}
 #stage{position:fixed;inset:0;background:#000;color:#33ff66;font-family:Consolas,monospace;padding:8vw;box-sizing:border-box;display:flex;align-items:center;overflow:auto;z-index:9}
 #out{white-space:pre-wrap;font-size:clamp(1rem,2.4vw,1.4rem);line-height:1.5;margin:0;max-width:44em}
-</style></head><body>
+</style>
+</head>
+<body>
 <section class="bsod" id="bsod">
   <div class="face">:(</div>
   <p>На вашем компьютере возникла проблема, и поздравление необходимо перезагрузить. Мы лишь собираем некоторые сведения об ошибке.</p>
@@ -27,54 +35,203 @@ button:hover:not(:disabled){background:#fff3}button:disabled{opacity:.35;cursor:
   <h2>Сегменты дампа</h2>
   <div id="slots"></div><br>
   <p>Сегменты 1 и 2 ищите в отчёте о сбое на GitHub (Issues и Commits). Там будет код сегмента:</p>
-  <input id="code" placeholder="код сегмента" autocomplete="off"><button id="ok">Ввести</button>
+  <input id="code" placeholder="код сегмента" autocomplete="off">
+  <button id="ok">Ввести</button>
   <p id="msg"></p>
-  <p><button id="dbg">Запустить отладчик (сегмент 3)</button>
-     <button id="quiz">Пройти тест (сегмент 4)</button></p>
-  <div id="sv"></div><hr style="border-color:#33ff6644">
+  <p>
+    <button id="dbg">Запустить отладчик (сегмент 3)</button>
+    <button id="quiz">Пройти тест (сегмент 4)</button>
+  </p>
+  <div id="sv"></div>
+  <hr style="border-color:#33ff6644">
   <button id="assemble" disabled>Собрать дамп</button>
 </section>
 
 <div id="stage" hidden><pre id="out"></pre></div>
 
-<script src="config.js"></script>
 <script>
-const C=CONFIG,$=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms));
-const done=[0,0,0,0];$('#who').textContent=C.name;
-function render(){$('#slots').innerHTML=done.map((d,i)=>`${d?'[✔]':'[ ]'} Сегмент ${i+1}/4`).join('<br>');
-  $('#assemble').disabled=!done.every(Boolean);}
-async function type(o,t,ms=35){for(const ch of t){o.textContent+=ch;await sleep(ms)}}
-function key(){return new Promise(r=>{const f=e=>{if(e.type==='click'||e.key==='Enter'){removeEventListener('keydown',f);removeEventListener('click',f);r()}};addEventListener('keydown',f);addEventListener('click',f)})}
-async function stage(fn){const s=$('#stage'),o=$('#out');o.textContent='';s.hidden=false;await sleep(200);await fn(o);s.hidden=true}
-const wish=(n,t)=>stage(async o=>{await type(o,`Сегмент ${n}/4 восстановлен:\n\n`,15);await type(o,t);o.textContent+='\n\n[Enter — дальше]';await key()});
-const bar=async(o,n)=>{o.textContent+=`\nВосстанавливаю сегмент ${n}/4 `;for(let i=0;i<20;i++){o.textContent+='█';await sleep(50)}o.textContent+=' OK'};
+// ===== CONFIG (всё, что нужно менять) =====
+const CONFIG = {
+  name: "Надежды Михайловны",
+  from: "9M",
+  author: "Надежда Михайловна",
+  codes: ["ЕНОТ", "ДИВАН"],
+  wishes: [
+    "Пусть все программы в вашей жизни компилируются с первого раза.",
+    "Спасибо что объясняете так, что понимаем даже мы.",
+    "Пусть Wi-Fi в кабинете всегда работает, а проектор включается сам.",
+    "Спасибо, что вы учите нас не только кликать, но и думать."
+  ],
+  survey: [
+    {
+      q: "Что чаще всего звучит на информатике?",
+      opts: [
+        { t: "«А вы файл сохранили?»", r: "Сохранено. Но не там, где нужно. Как обычно." },
+        { t: "«Перезагрузите компьютер»", r: "Классика. Помогает в 73% случаев." }
+      ]
+    },
+    {
+      q: "Как класс встречает слово «самостоятельная»?",
+      opts: [
+        { t: "Паника", r: "Паника принята и обработана." },
+        { t: "Героически молчит", r: "Молчание — знак согласия. Или страха." }
+      ]
+    },
+    {
+      q: "Главный секрет кабинета информатики?",
+      opts: [
+        { t: "Обои на компьютере", r: "Мы ничего не меняли. (Мы меняли.)" },
+        { t: "Выключающиеся компьютеры", r: "Мы не трогали, он сам." }
+      ]
+    }
+  ]
+};
 
-$('#run').onclick=()=>{$('#bsod').hidden=true;$('#dash').hidden=false;render();scrollTo(0,0)};
+// ===== ЛОГИКА =====
+const C = CONFIG;
+const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const done = [0, 0, 0, 0];
 
-$('#ok').onclick=()=>{const v=$('#code').value.trim().toUpperCase(),i=C.codes.findIndex(c=>c.toUpperCase()===v);
-  $('#code').value='';
-  if(i<0)return $('#msg').textContent='Код не подходит. Тест не пройден, но мы вас всё равно любим.';
-  done[i]=1;$('#msg').textContent=`Сегмент ${i+1} принят.`;render()};
+$('#who').textContent = C.name;
 
-$('#dbg').onclick=async()=>{await stage(async o=>{
-  await type(o,'> debugger --attach core.dump\n',25);await type(o,'> сканирую память...\n',25);
-  await bar(o,3);o.textContent+='\n\n';await sleep(500)});
-  await wish(3,C.wishes[2]);done[2]=1;render()};
+function render() {
+  $('#slots').innerHTML = done.map((d, i) => `${d ? '[✔]' : '[ ]'} Сегмент ${i + 1}/4`).join('<br>');
+  $('#assemble').disabled = !done.every(Boolean);
+}
 
-$('#quiz').onclick=async()=>{const box=$('#sv');
-  for(const q of C.survey){
-    box.innerHTML=`<p>${q.q}</p>`+q.opts.map((o,i)=>`<button data-i="${i}">${o.t}</button>`).join('');
-    const i=await new Promise(r=>box.onclick=e=>e.target.dataset.i&&r(+e.target.dataset.i));
-    box.innerHTML=`<p>&gt; ${q.opts[i].r}</p>`;await sleep(2300)}
-  box.innerHTML='';await wish(4,C.wishes[3]);done[3]=1;render()};
+async function type(o, t, ms = 35) {
+  for (const ch of t) {
+    o.textContent += ch;
+    await sleep(ms);
+  }
+}
 
-$('#assemble').onclick=()=>stage(async o=>{
-  for(let n=1;n<=4;n++){await bar(o,n);await sleep(200)}
-  o.textContent='';await type(o,`С Днём учителя, ${C.name}!\n\n`,40);
-  for(const w of C.wishes){await type(o,'• '+w+'\n',22);await sleep(500)}
-  await sleep(1200);await type(o,'\n$ git blame greeting.txt\n',50);
-  const h=['a1b2c3d','e4f5a6b','9c8d7e6','3f2e1d0'];
-  for(let i=0;i<4;i++){await type(o,`${h[i]} (${C.author}) ${C.wishes[i].slice(0,38)}…\n`,8);await sleep(300)}
-  await sleep(900);await type(o,`\nВсё лучшее в нас написали вы. Мы только запушили.\n— ${C.from}\n\nExit code 0.`,45);
-  await sleep(4000)});
-</script></body></html>
+function key() {
+  return new Promise(resolve => {
+    const handler = e => {
+      if (e.type === 'click' || (e.type === 'keydown' && e.key === 'Enter')) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        document.removeEventListener('keydown', handler, true);
+        document.removeEventListener('click', handler, true);
+        setTimeout(resolve, 80);
+      }
+    };
+    document.addEventListener('keydown', handler, true);
+    document.addEventListener('click', handler, true);
+  });
+}
+
+async function stage(fn) {
+  const s = $('#stage');
+  const o = $('#out');
+  if (document.activeElement) document.activeElement.blur();
+  o.textContent = '';
+  s.hidden = false;
+  await sleep(150);
+  await fn(o);
+  s.hidden = true;
+}
+
+const wish = (n, t) => stage(async o => {
+  await type(o, `Сегмент ${n}/4 восстановлен:\n\n`, 15);
+  await type(o, t);
+  o.textContent += '\n\n[Enter — дальше]';
+  await key();
+});
+
+const bar = async (o, n) => {
+  o.textContent += `\nВосстанавливаю сегмент ${n}/4 `;
+  for (let i = 0; i < 20; i++) {
+    o.textContent += '█';
+    await sleep(50);
+  }
+  o.textContent += ' OK';
+};
+
+$('#run').onclick = () => {
+  $('#bsod').hidden = true;
+  $('#dash').hidden = false;
+  render();
+  scrollTo(0, 0);
+};
+
+$('#ok').onclick = () => {
+  const v = $('#code').value.trim().toUpperCase();
+  const i = C.codes.findIndex(c => c.toUpperCase() === v);
+  $('#code').value = '';
+  if (i < 0) {
+    $('#msg').textContent = 'Код не подходит. Тест не пройден, но мы вас всё равно любим.';
+    return;
+  }
+  done[i] = 1;
+  $('#msg').textContent = `Сегмент ${i + 1} принят.`;
+  render();
+};
+
+$('#dbg').onclick = async () => {
+  await stage(async o => {
+    await type(o, '> debugger --attach core.dump\n', 25);
+    await type(o, '> сканирую память...\n', 25);
+    await bar(o, 3);
+    o.textContent += '\n\n';
+    await sleep(400);
+  });
+  await wish(3, C.wishes[2]);
+  done[2] = 1;
+  render();
+};
+
+$('#quiz').onclick = async () => {
+  const box = $('#sv');
+  for (const q of C.survey) {
+    box.innerHTML = `<p>${q.q}</p>` + q.opts.map((o, i) =>
+      `<button data-i="${i}">${o.t}</button>`
+    ).join('');
+
+    const i = await new Promise(resolve => {
+      const handler = e => {
+        const btn = e.target.closest('button[data-i]');
+        if (!btn) return;
+        box.querySelectorAll('button').forEach(b => b.disabled = true);
+        box.removeEventListener('click', handler);
+        resolve(+btn.dataset.i);
+      };
+      box.addEventListener('click', handler);
+    });
+
+    box.innerHTML = `<p>&gt; ${q.opts[i].r}</p>`;
+    await sleep(2200);
+  }
+  box.innerHTML = '';
+  await wish(4, C.wishes[3]);
+  done[3] = 1;
+  render();
+};
+
+$('#assemble').onclick = () => stage(async o => {
+  for (let n = 1; n <= 4; n++) {
+    await bar(o, n);
+    await sleep(180);
+  }
+  o.textContent = '';
+  await type(o, `С Днём учителя, ${C.author}!\n\n`, 40);
+  for (const w of C.wishes) {
+    await type(o, '• ' + w + '\n', 22);
+    await sleep(450);
+  }
+  await sleep(1000);
+  await type(o, '\n$ git blame greeting.txt\n', 50);
+  const h = ['a1b2c3d', 'e4f5a6b', '9c8d7e6', '3f2e1d0'];
+  for (let i = 0; i < 4; i++) {
+    await type(o, `${h[i]} (${C.author}) ${C.wishes[i].slice(0, 38)}…\n`, 8);
+    await sleep(280);
+  }
+  await sleep(800);
+  await type(o, `\nВсё лучшее в нас написали вы. Мы только запушили.\n— ${C.from}\n\nExit code 0.`, 45);
+  await sleep(3500);
+});
+</script>
+</body>
+</html>
